@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from modules.portscanner import PortScanner
+from modules.portscanner import PortScannerModule
+from modules.crsf import CRSFModule
 
 
 class ThinkerApp(tk.Tk):
@@ -19,7 +20,11 @@ class ThinkerApp(tk.Tk):
         self.module_frame = tk.Frame(self, bg="#1e1e1e")
         self.module_frame.pack(side="top", fill="x", pady=20)
 
-        modules = [("Port Scanner", self.show_port_scanner)]
+        modules = [
+            ("Port Scanner", self.show_port_scanner),
+            ("CRSF", self.show_crsf)
+        ]
+
         for i, (label, action) in enumerate(modules):
             frame = tk.Frame(self.module_frame, bg="#1e1e1e")
             frame.grid(row=0, column=i, padx=20)
@@ -35,7 +40,11 @@ class ThinkerApp(tk.Tk):
 
     def show_port_scanner(self):
         self.clear_container()
-        PortScanner(self.container)
+        PortScannerModule(self.container)
+
+    def show_crsf(self):
+        self.clear_container()
+        CRSFModule(self.container)
 
 
 if __name__ == "__main__":
