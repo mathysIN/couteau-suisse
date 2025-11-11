@@ -2,13 +2,14 @@ import tkinter as tk
 from tkinter import ttk
 from modules.portscanner import PortScannerModule
 from modules.crsf import CRSFModule
+from modules.xss_injection import XSSModule
 
 
 class ThinkerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Attack GUI Tool")
-        self.geometry("800x500")
+        self.geometry("900x600")
         self.configure(bg="#1e1e1e")
         self.style = ttk.Style(self)
         self.style.theme_use("clam")
@@ -22,7 +23,8 @@ class ThinkerApp(tk.Tk):
 
         modules = [
             ("Port Scanner", self.show_port_scanner),
-            ("CRSF", self.show_crsf)
+            ("CSRF", self.show_crsf),
+            ("XSS Injection", self.show_xss)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -45,6 +47,10 @@ class ThinkerApp(tk.Tk):
     def show_crsf(self):
         self.clear_container()
         CRSFModule(self.container)
+
+    def show_xss(self):
+        self.clear_container()
+        XSSModule(self.container)
 
 
 if __name__ == "__main__":
