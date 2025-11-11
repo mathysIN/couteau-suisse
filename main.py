@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from modules.portscanner import PortScannerModule
 from modules.crsf import CRSFModule
+from modules.sql_injection import SQLInjectionModule
+
 
 
 class ThinkerApp(tk.Tk):
@@ -23,6 +25,7 @@ class ThinkerApp(tk.Tk):
         modules = [
             ("Port Scanner", self.show_port_scanner),
             ("CRSF", self.show_crsf)
+            ("SQL Injection", self.show_sql_injection)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -45,6 +48,10 @@ class ThinkerApp(tk.Tk):
     def show_crsf(self):
         self.clear_container()
         CRSFModule(self.container)
+
+    def show_sql_injection(self):
+        self.clear_container()
+        SQLInjectionModule(self.container)
 
 
 if __name__ == "__main__":
