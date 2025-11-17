@@ -25,7 +25,7 @@ class ThinkerApp(tk.Tk):
         modules = [
             ("Port Scanner", self.show_port_scanner),
             ("CSRF", self.show_crsf),
-            ("XSS Injection", self.show_xss)
+            ("XSS Injection", self.show_xss),
             ("SQL Injection", self.show_sql_injection)
         ]
 
