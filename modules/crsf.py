@@ -1,56 +1,31 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext, messagebox
 import threading
-import asyncio
 import queue
 import os
 import json
 import re
-from typing import Callable, Dict, Optional, Set, Tuple
+from typing import Callable, Dict, Optional
 import subprocess
 import tempfile
-import sys
 
 try:
     from mitmproxy import http
-    from mitmproxy.options import Options
     from mitmproxy.tools.dump import DumpMaster
     MITMPROXY_AVAILABLE = True
 except Exception:
     MITMPROXY_AVAILABLE = False
 
 
-TOKEN_NAME_CANDIDATES = [
-    "csrf", "_csrf", "xsrf", "_xsrf",
-    "csrf_token", "xsrf_token", "x_csrf_token", "x_xsrf_token",
-    "authenticity_token", "__RequestVerificationToken",
-    "anti_csrf", "anti_forgery", "anti_forger"
-]
-
-TOKEN_HEADER_CANDIDATES = [
-    "x-csrf-token", "x-xsrf-token", "x-request-verification-token"
-]
-
-
 class CsrfAddon:
     def __init__(self, log_fn: Callable[[str], None], scope_pattern: Optional[str] = None,
-                 probe_mode: bool = False) -> None:
+                 probe_mode: bool = False, intercept_mode: bool = False,
+                 state_file: Optional[str] = None) -> None:
         self.log_fn = log_fn
-        self.probe_mode = probe_mode
+        self.intercept_mode = intercept_mode
         self.scope_re = re.compile(scope_pattern) if scope_pattern else None
-
-        self.host_to_token_names: Dict[str, Set[str]] = {}
-        self.probed_flow_ids: Dict[str, Tuple[str, str]] = {}
-
-        token_name_regex = r"|".join([re.escape(n) for n in TOKEN_NAME_CANDIDATES])
-        self.hidden_input_re = re.compile(
-            rf"<input[^>]*type=['\"]hidden['\"][^>]*name=['\"]([^'\"]*?(?:{token_name_regex})[^'\"]*)['\"][^>]*value=['\"]([^'\"]*)['\"][^>]*>",
-            re.IGNORECASE
-        )
-        self.meta_token_re = re.compile(
-            r"<meta[^>]*name=['\"]csrf-token['\"][^>]*content=['\"]([^'\"]*)['\"][^>]*>",
-            re.IGNORECASE
-        )
+        self.state_file = state_file
+        self.intercepted_flows: Dict[str, "http.HTTPFlow"] = {}
 
     def _in_scope(self, flow: "http.HTTPFlow") -> bool:
         if not self.scope_re:
@@ -59,179 +34,108 @@ class CsrfAddon:
         url = flow.request.pretty_url
         return bool(self.scope_re.search(host) or self.scope_re.search(url))
 
-    def _record_token_name(self, host: str, name: str) -> None:
-        if not name:
-            return
-        names = self.host_to_token_names.setdefault(host, set())
-        if name not in names:
-            names.add(name)
-            self.log_fn(f"[+] Learned CSRF token field '{name}' for host {host}")
-
-    def _discover_tokens_from_html(self, host: str, content: bytes) -> None:
-        try:
-            text = content.decode("utf-8", errors="ignore")
-        except Exception:
-            return
-        for m in self.hidden_input_re.finditer(text):
-            name = m.group(1)
-            self._record_token_name(host, name)
-        for m in self.meta_token_re.finditer(text):
-            self._record_token_name(host, "header:x-csrf-token")
-
-    def _extract_params(self, flow: "http.HTTPFlow") -> Dict[str, str]:
-        params: Dict[str, str] = {}
-        try:
-            for k, v in flow.request.query.items(multi=True):
-                params[k] = v
-        except Exception:
-            pass
-        ctype = flow.request.headers.get("content-type", "").lower()
-        body_bytes = flow.request.raw_content or b""
-        if "application/x-www-form-urlencoded" in ctype:
-            try:
-                for k, v in flow.request.urlencoded_form.items(multi=True):
-                    params[k] = v
-            except Exception:
-                try:
-                    from urllib.parse import parse_qsl
-                    for k, v in parse_qsl(body_bytes.decode("utf-8", errors="ignore")):
-                        params[k] = v
-                except Exception:
-                    pass
-        elif "multipart/form-data" in ctype:
-            try:
-                if flow.request.multipart_form:
-                    for k, v in flow.request.multipart_form.items(multi=True):
-                        if isinstance(v, bytes):
-                            try:
-                                params[k] = v.decode("utf-8", errors="ignore")
-                            except Exception:
-                                params[k] = "[bytes]"
-                        else:
-                            params[k] = v
-            except Exception:
-                pass
-        elif "application/json" in ctype:
-            try:
-                obj = json.loads(body_bytes.decode("utf-8", errors="ignore"))
-                def flatten(prefix: str, value):
-                    if isinstance(value, dict):
-                        for kk, vv in value.items():
-                            flatten(f"{prefix}.{kk}" if prefix else kk, vv)
-                    else:
-                        params[prefix] = str(value)
-                flatten("", obj)
-            except Exception:
-                pass
-        return params
-
-    def _has_csrf_signal(self, flow: "http.HTTPFlow", params: Dict[str, str]) -> bool:
-        headers = {k.lower(): v for k, v in flow.request.headers.items()}
-        for h in TOKEN_HEADER_CANDIDATES:
-            if h in headers and headers[h]:
-                return True
-        host = flow.request.host
-        names_for_host = set(self.host_to_token_names.get(host, set()))
-        lower_to_original = {k.lower(): k for k in params.keys()}
-        for candidate in TOKEN_NAME_CANDIDATES:
-            if candidate in lower_to_original:
-                return True
-        for learned in names_for_host:
-            key_lower = learned.lower()
-            if key_lower.startswith("header:"):
-                continue
-            if key_lower in lower_to_original:
-                return True
-        return False
-
     def request(self, flow: "http.HTTPFlow") -> None:
+        if self.intercept_mode:
+            self._check_commands()
+        
         if not self._in_scope(flow):
             return
-        method = flow.request.method.upper()
-        if method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        
+        if self.intercept_mode:
+            method = flow.request.method.upper()
+            if method in {"POST", "PUT", "PATCH", "DELETE"}:
+                flow_id = flow.id
+                self.intercepted_flows[flow_id] = flow
+                target = f"{flow.request.method} {flow.request.pretty_url}"
+                self.log_fn(f"[*] Intercepted request: {target} (ID: {flow_id})")
+                
+                if self.state_file:
+                    self._save_intercepted_flow(flow_id, flow)
+                else:
+                    self.log_fn(f"[!] No state file set!")
+                
+                flow.intercept()
+                return
+    
+    def _save_intercepted_flow(self, flow_id: str, flow: "http.HTTPFlow") -> None:
+        try:
+            flow_data = {
+                "flow_id": flow_id,
+                "method": flow.request.method,
+                "url": flow.request.pretty_url,
+                "headers": dict(flow.request.headers),
+                "body": flow.request.get_text(strict=False) or "",
+            }
+            with open(self.state_file, "w") as f:
+                json.dump(flow_data, f)
+        except Exception as e:
+            self.log_fn(f"[!] Failed to save flow: {e}")
+    
+    def _check_commands(self) -> None:
+        if not self.state_file:
             return
-        params = self._extract_params(flow)
-        has_token = self._has_csrf_signal(flow, params)
-        target = f"{flow.request.method} {flow.request.pretty_url}"
-        if not has_token:
-            self.log_fn(f"[!] Potential CSRF: no token in {target}")
-        elif self.probe_mode:
-            removed_any = False
-            for h in list(flow.request.headers.keys()):
-                if h.lower() in TOKEN_HEADER_CANDIDATES:
-                    removed_any = True
-                    del flow.request.headers[h]
-            body_was_modified = False
-            ctype = flow.request.headers.get("content-type", "").lower()
-            if "application/x-www-form-urlencoded" in ctype:
-                try:
-                    q = flow.request.urlencoded_form
-                    keys_to_remove = []
-                    for k in q.keys():
-                        if any(t in k.lower() for t in TOKEN_NAME_CANDIDATES):
-                            keys_to_remove.append(k)
-                    for k in keys_to_remove:
-                        removed_any = True
-                        del q[k]
-                    flow.request.urlencoded_form = q
-                    body_was_modified = True
-                except Exception:
-                    pass
-            elif "application/json" in ctype:
-                try:
-                    obj = json.loads(flow.request.get_text(strict=False) or "{}")
-                    def strip_tokens(o):
-                        if isinstance(o, dict):
-                            for k in list(o.keys()):
-                                if any(t in k.lower() for t in TOKEN_NAME_CANDIDATES):
-                                    del o[k]
-                                else:
-                                    strip_tokens(o[k])
-                        elif isinstance(o, list):
-                            for it in o:
-                                strip_tokens(it)
-                    strip_tokens(obj)
-                    flow.request.set_text(json.dumps(obj))
-                    body_was_modified = True
-                except Exception:
-                    pass
-            if removed_any or body_was_modified:
-                self.probed_flow_ids[flow.id] = (flow.request.method, flow.request.path)
-                self.log_fn(f"[*] Probe: removed CSRF token(s) from {target}")
-
-    def response(self, flow: "http.HTTPFlow") -> None:
-        if not self._in_scope(flow):
+        
+        cmd_file = self.state_file + ".cmd"
+        if not os.path.exists(cmd_file):
             return
-        host = flow.request.host
-        ctype = (flow.response.headers.get("content-type", "").split(";")[0]).lower()
-        if "text/html" in ctype or "application/xhtml" in ctype:
-            self._discover_tokens_from_html(host, flow.response.raw_content or b"")
-        if flow.id in self.probed_flow_ids:
-            method, path = self.probed_flow_ids.pop(flow.id, (flow.request.method, flow.request.path))
-            status = flow.response.status_code
-            if 200 <= status < 300:
-                self.log_fn(f"[!] Probe result: {method} {path} accepted WITHOUT CSRF token (HTTP {status})")
-            elif status in {400, 401, 403}:
-                self.log_fn(f"[+] Probe result: {method} {path} rejected as expected (HTTP {status})")
-            else:
-                self.log_fn(f"[-] Probe result: {method} {path} returned HTTP {status} (inconclusive)")
+        
+        try:
+            with open(cmd_file, "r") as f:
+                cmd = json.load(f)
+            os.unlink(cmd_file)
+            
+            flow_id = cmd.get("flow_id")
+            action = cmd.get("action")
+            
+            if flow_id not in self.intercepted_flows:
+                return
+            
+            flow = self.intercepted_flows[flow_id]
+            
+            if action == "resume":
+                if "headers" in cmd:
+                    flow.request.headers.clear()
+                    for k, v in cmd["headers"].items():
+                        flow.request.headers[k] = v
+                if "body" in cmd:
+                    flow.request.set_content(cmd["body"].encode("utf-8"))
+                flow.resume()
+                del self.intercepted_flows[flow_id]
+                self.log_fn(f"[*] Resumed flow {flow_id}")
+            elif action == "drop":
+                flow.kill()
+                del self.intercepted_flows[flow_id]
+                self.log_fn(f"[*] Dropped flow {flow_id}")
+        except Exception as e:
+            self.log_fn(f"[!] Command error: {e}")
+    
+    def running(self) -> None:
+        if self.intercept_mode:
+            self._check_commands()
 
 
 class MitmProxyRunner:
-    def __init__(self, log_fn: Callable[[str], None]) -> None:
+    def __init__(self, log_fn: Callable[[str], None], intercept_callback: Optional[Callable] = None) -> None:
         self.log_fn = log_fn
+        self.intercept_callback = intercept_callback
         self.master: Optional[DumpMaster] = None
         self.thread: Optional[threading.Thread] = None
         self.proc: Optional[subprocess.Popen] = None
         self.proc_reader_thread: Optional[threading.Thread] = None
         self.temp_script_path: Optional[str] = None
+        self.state_file: Optional[str] = None
 
     def start(self, listen_host: str, listen_port: int, upstream: Optional[str],
-              scope_pattern: Optional[str], probe_mode: bool) -> None:
+              scope_pattern: Optional[str], probe_mode: bool, intercept_mode: bool = False) -> None:
         if self.proc is not None or self.master is not None:
             self.log_fn("[!] Proxy already running")
             return
-        self._start_mitmdump_subprocess(listen_host, listen_port, upstream, scope_pattern, probe_mode)
+        
+        if intercept_mode:
+            self.state_file = os.path.join(tempfile.gettempdir(), f"csrf_state_{os.getpid()}.json")
+        
+        self._start_mitmdump_subprocess(
+            listen_host, listen_port, upstream, scope_pattern, probe_mode, intercept_mode)
 
     def stop(self) -> None:
         if self.proc is not None:
@@ -252,6 +156,13 @@ class MitmProxyRunner:
                     os.unlink(self.temp_script_path)
                 except Exception:
                     pass
+            if self.state_file and os.path.exists(self.state_file):
+                try:
+                    os.unlink(self.state_file)
+                    if os.path.exists(self.state_file + ".cmd"):
+                        os.unlink(self.state_file + ".cmd")
+                except Exception:
+                    pass
             self.log_fn("[*] Proxy stopped")
             return
         if self.master is not None:
@@ -263,10 +174,10 @@ class MitmProxyRunner:
             self.log_fn("[*] Proxy stopped")
 
     def _start_mitmdump_subprocess(self, listen_host: str, listen_port: int, upstream: Optional[str],
-                                   scope_pattern: Optional[str], probe_mode: bool) -> None:
+                                   scope_pattern: Optional[str], probe_mode: bool, intercept_mode: bool = False) -> None:
         try:
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            script_code = self._generate_addon_script(scope_pattern, probe_mode)
+            script_code = self._generate_addon_script(scope_pattern, probe_mode, intercept_mode)
             fd, path = tempfile.mkstemp(prefix="csrf_addon_", suffix=".py")
             with os.fdopen(fd, "w") as f:
                 f.write(script_code)
@@ -286,6 +197,8 @@ class MitmProxyRunner:
 
             env = os.environ.copy()
             env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
+            if intercept_mode and self.state_file:
+                env["CSRF_STATE_FILE"] = self.state_file
 
             self.log_fn(f"[*] Starting mitmproxy on {listen_host}:{listen_port}" +
                         (f" via upstream {upstream}" if upstream else ""))
@@ -313,15 +226,54 @@ class MitmProxyRunner:
         except Exception as e:
             self.log_fn(f"[!] Failed to start mitmdump: {e}")
 
-    def _generate_addon_script(self, scope_pattern: Optional[str], probe_mode: bool) -> str:
+    def _generate_addon_script(self, scope_pattern: Optional[str], probe_mode: bool, intercept_mode: bool = False) -> str:
         sp = (scope_pattern or "")
         pm = "True" if probe_mode else "False"
+        im = "True" if intercept_mode else "False"
+        state_file_str = "os.environ.get('CSRF_STATE_FILE')" if intercept_mode else "None"
+        scope_repr = repr(sp) if sp else "None"
+        scope_bool = "True" if sp else "False"
         return (
+            "import os\n"
             "from modules.crsf import CsrfAddon\n"
             "def _log(msg: str):\n"
             "    print(msg, flush=True)\n"
-            f"addons = [CsrfAddon(_log, scope_pattern={sp!r} if {bool(sp)!r} else None, probe_mode={pm})]\n"
+            "state_file = {}\n".format(state_file_str) +
+            "_log('[CSRF ADDON] Starting with scope=' + {} + ', probe={}, intercept={}, state_file=' + str(state_file))\n".format(scope_repr, pm, im) +
+            "addons = [CsrfAddon(_log, scope_pattern={} if {} else None, probe_mode={}, intercept_mode={}, state_file=state_file)]\n".format(scope_repr, scope_bool, pm, im) +
+            "_log('[CSRF ADDON] Addon loaded successfully')\n"
         )
+    
+    def resume_flow(self, flow_id: str, headers: Dict[str, str], body: str) -> bool:
+        if not self.state_file:
+            return False
+        try:
+            cmd_file = self.state_file + ".cmd"
+            cmd = {
+                "action": "resume",
+                "flow_id": flow_id,
+                "headers": headers,
+                "body": body
+            }
+            with open(cmd_file, "w") as f:
+                json.dump(cmd, f)
+            return True
+        except Exception as e:
+            self.log_fn(f"[!] Failed to resume flow: {e}")
+            return False
+    
+    def drop_flow(self, flow_id: str) -> bool:
+        if not self.state_file:
+            return False
+        try:
+            cmd_file = self.state_file + ".cmd"
+            cmd = {"action": "drop", "flow_id": flow_id}
+            with open(cmd_file, "w") as f:
+                json.dump(cmd, f)
+            return True
+        except Exception as e:
+            self.log_fn(f"[!] Failed to drop flow: {e}")
+            return False
 
 
 class CRSFModule(tk.Frame):
@@ -330,7 +282,8 @@ class CRSFModule(tk.Frame):
         self.pack(fill="both", expand=True)
 
         self.log_queue: "queue.Queue[str]" = queue.Queue()
-        self.runner = MitmProxyRunner(self._enqueue_log)
+        self.runner = MitmProxyRunner(self._enqueue_log, self._on_intercepted_flow)
+        self.intercept_dialogs: Dict[str, tk.Toplevel] = {}
 
         row = tk.Frame(self, bg="#1e1e1e")
         row.pack(fill="x")
@@ -344,22 +297,12 @@ class CRSFModule(tk.Frame):
         self.listen_port.insert(0, "8081")
         self.listen_port.pack(side="left", padx=(5, 15))
 
-        ttk.Label(row, text="Upstream proxy (host:port or scheme://host:port):").pack(side="left")
-        self.upstream = ttk.Entry(row, width=28)
-        default_upstream = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or ""
-        if default_upstream:
-            self.upstream.insert(0, default_upstream)
-        self.upstream.pack(side="left", padx=(5, 15))
-
         row2 = tk.Frame(self, bg="#1e1e1e")
         row2.pack(fill="x", pady=(8, 0))
-        ttk.Label(row2, text="Scope (regex, optional):").pack(side="left")
+        ttk.Label(row2, text="Scope (regex):").pack(side="left")
         self.scope = ttk.Entry(row2)
         self.scope.insert(0, "")
         self.scope.pack(side="left", fill="x", expand=True, padx=(5, 15))
-
-        self.probe_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(row2, text="Active probe (strip tokens)", variable=self.probe_var).pack(side="left")
 
         row3 = tk.Frame(self, bg="#1e1e1e")
         row3.pack(fill="x", pady=(8, 0))
@@ -386,6 +329,24 @@ class CRSFModule(tk.Frame):
         except queue.Empty:
             pass
         self.after(200, self._flush_logs)
+    
+    def _check_intercepted_flows(self) -> None:
+        if not self.runner.state_file:
+            self.after(200, self._check_intercepted_flows)
+            return
+        
+        if os.path.exists(self.runner.state_file):
+            try:
+                with open(self.runner.state_file, "r") as f:
+                    flow_data = json.load(f)
+                os.unlink(self.runner.state_file)
+                self._on_intercepted_flow(flow_data)
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass
+            except Exception as e:
+                self._enqueue_log(f"[!] Error checking flows: {e}")
+        
+        self.after(200, self._check_intercepted_flows)
 
     def _on_start(self) -> None:
         listen_host = self.listen_host.get().strip() or "127.0.0.1"
@@ -394,10 +355,104 @@ class CRSFModule(tk.Frame):
         except Exception:
             self._enqueue_log("[!] Invalid listen port")
             return
-        upstream = self.upstream.get().strip() or None
         scope_pattern = self.scope.get().strip() or None
-        probe_mode = bool(self.probe_var.get())
-        self.runner.start(listen_host, listen_port, upstream, scope_pattern, probe_mode)
+        if not scope_pattern:
+            self._enqueue_log("[!] Scope pattern is required")
+            return
+        self.runner.start(listen_host, listen_port, None, scope_pattern, False, True)
+        self.after(200, self._check_intercepted_flows)
 
     def _on_stop(self) -> None:
         self.runner.stop()
+        for dialog in list(self.intercept_dialogs.values()):
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+        self.intercept_dialogs.clear()
+    
+    def _on_intercepted_flow(self, flow_data: Dict) -> None:
+        flow_id = flow_data.get("flow_id")
+        if not flow_id:
+            return
+        self.after(0, lambda: self._show_intercept_dialog(flow_data))
+    
+    def _show_intercept_dialog(self, flow_data: Dict) -> None:
+        flow_id = flow_data.get("flow_id")
+        if flow_id in self.intercept_dialogs:
+            try:
+                self.intercept_dialogs[flow_id].lift()
+                return
+            except Exception:
+                pass
+        
+        dialog = tk.Toplevel(self)
+        dialog.title(f"Edit Request - {flow_data.get('method')} {flow_data.get('url', '')[:50]}")
+        dialog.configure(bg="#1e1e1e")
+        dialog.geometry("800x700")
+        
+        self.intercept_dialogs[flow_id] = dialog
+        
+        def on_close():
+            if flow_id in self.intercept_dialogs:
+                del self.intercept_dialogs[flow_id]
+            dialog.destroy()
+        
+        dialog.protocol("WM_DELETE_WINDOW", on_close)
+        
+        info_frame = tk.Frame(dialog, bg="#1e1e1e")
+        info_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(info_frame, text="Method:", background="#1e1e1e", foreground="white").pack(side="left")
+        ttk.Label(info_frame, text=flow_data.get("method", ""), background="#1e1e1e", foreground="white").pack(side="left", padx=5)
+        ttk.Label(info_frame, text="URL:", background="#1e1e1e", foreground="white").pack(side="left", padx=(20, 0))
+        ttk.Label(info_frame, text=flow_data.get("url", ""), background="#1e1e1e", foreground="white").pack(side="left", padx=5)
+        
+        headers_frame = tk.LabelFrame(dialog, text="Headers", bg="#1e1e1e", fg="white")
+        headers_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        headers_text = scrolledtext.ScrolledText(headers_frame, bg="#252526", fg="white", height=12, font=("Courier", 10))
+        headers_text.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        headers = flow_data.get("headers", {})
+        for key, value in headers.items():
+            headers_text.insert("end", f"{key}: {value}\n")
+        
+        body_frame = tk.LabelFrame(dialog, text="Request Body", bg="#1e1e1e", fg="white")
+        body_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        body_text = scrolledtext.ScrolledText(body_frame, bg="#252526", fg="white", height=15, font=("Courier", 10))
+        body_text.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        body = flow_data.get("body", "")
+        body_text.insert("1.0", body)
+        
+        button_frame = tk.Frame(dialog, bg="#1e1e1e")
+        button_frame.pack(fill="x", padx=10, pady=10)
+        
+        def send_request():
+            headers_content = headers_text.get("1.0", "end-1c")
+            new_headers = {}
+            for line in headers_content.split("\n"):
+                line = line.strip()
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    new_headers[key.strip()] = value.strip()
+            
+            new_body = body_text.get("1.0", "end-1c")
+            
+            if self.runner.resume_flow(flow_id, new_headers, new_body):
+                self._enqueue_log(f"[*] Sent modified request for flow {flow_id}")
+                on_close()
+            else:
+                messagebox.showerror("Error", "Failed to send request")
+        
+        def drop_request():
+            if self.runner.drop_flow(flow_id):
+                self._enqueue_log(f"[*] Dropped request for flow {flow_id}")
+                on_close()
+            else:
+                messagebox.showerror("Error", "Failed to drop request")
+        
+        ttk.Button(button_frame, text="Send Request", command=send_request).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Drop Request", command=drop_request).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Cancel", command=on_close).pack(side="right", padx=5)
