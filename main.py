@@ -22,11 +22,13 @@ class ThinkerApp(tk.Tk):
         self.module_frame = tk.Frame(self, bg="#1e1e1e")
         self.module_frame.pack(side="top", fill="x", pady=20)
 
+
         modules = [
             ("Port Scanner", self.show_port_scanner),
             ("CSRF", self.show_crsf),
             ("XSS Injection", self.show_xss),
-            ("SQL Injection", self.show_sql_injection)
+            ("SQL Injection", self.show_sql_injection),
+            ("Supply Chain Scan", self.run_supply_chain_scan)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -35,8 +37,43 @@ class ThinkerApp(tk.Tk):
             btn = ttk.Button(frame, text=label, command=action)
             btn.pack()
 
+        # Initialisation correcte du container principal
         self.container = tk.Frame(self, bg="#1e1e1e")
         self.container.pack(fill="both", expand=True, padx=20, pady=10)
+    def run_supply_chain_scan(self):
+        import threading
+        import subprocess
+        import sys
+
+        def scan_and_display():
+            self.clear_container()
+            # Détruire complètement l'ancien container
+            if hasattr(self, 'container') and self.container.winfo_exists():
+                self.container.destroy()
+            
+            # Recréer un nouveau container propre
+            self.container = tk.Frame(self, bg="#1e1e1e")
+            self.container.pack(fill="both", expand=True, padx=20, pady=10)
+            
+            text = tk.Text(self.container, bg="#252526", fg="white", wrap=tk.WORD, font=("Courier", 9))
+            text.pack(fill="both", expand=True)
+            text.insert("end", "[Supply Chain Scan en cours... Veuillez patienter]\n")
+            text.see("end")
+
+            try:
+                process = subprocess.Popen([sys.executable, "scan_supply_chain.py"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=".")
+                for line in iter(process.stdout.readline, ''):
+                    if not line:
+                        break
+                    text.insert("end", line)
+                    text.see("end")
+                process.stdout.close()
+                process.wait()
+            except Exception as e:
+                text.insert("end", f"\n[!] Erreur lors du scan: {e}\n")
+                text.see("end")
+
+        threading.Thread(target=scan_and_display, daemon=True).start()
 
     def clear_container(self):
         for w in self.container.winfo_children():
