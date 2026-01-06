@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 from modules.portscanner import PortScannerModule
 from modules.crsf import CRSFModule
-from modules.xss_injection import XSSModule
 from modules.sql_injection import SQLInjectionModule
 
 
@@ -25,7 +24,6 @@ class ThinkerApp(tk.Tk):
         modules = [
             ("Port Scanner", self.show_port_scanner),
             ("CSRF", self.show_crsf),
-            ("XSS Injection", self.show_xss),
             ("SQL Injection", self.show_sql_injection)
         ]
 

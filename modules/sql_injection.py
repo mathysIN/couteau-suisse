@@ -4,26 +4,40 @@ modules/sql_injection.py
 SCÉNARIO OWASP A03 – SQL INJECTION (Web Application Simulation)
 
 Objectif pédagogique :
-- Simuler une attaque SQL Injection sur une application WEB
-- L’attaque passe par des paramètres HTTP (GET /login)
-- Backend vulnérable qui construit une requête SQL dangereuse
-- Démontrer : Authentication Bypass, Union-based Injection, etc.
+- Scanner SQL Injection basé sur une URL cible
+- Injection via paramètres HTTP (GET)
+- Simulation backend vulnérable
+- Scan automatique multi-payloads
 
 ⚠️ Usage pédagogique uniquement
 """
 
+import os
 import sqlite3
 import tkinter as tk
 from tkinter import ttk, scrolledtext
+from urllib.parse import urlparse
+
+# =========================
+# CONFIG
+# =========================
+DB_PATH = "data/webapp_demo.sqlite"
+
+SQLI_PAYLOADS = [
+    "' OR '1'='1' --",
+    "' OR 1=1--",
+    "admin' --",
+    "' OR 'a'='a",
+    "' UNION SELECT null, null, null--",
+    "' UNION SELECT id, username, role FROM users--",
+    "' OR (SELECT COUNT(*) FROM users)>0--"
+]
 
 # =========================
 # BASE DE DONNÉES (DEMO)
 # =========================
-DB_PATH = "data/webapp_demo.sqlite"
-
-
 def init_demo_db():
-    """Initialise une base simulant une base de site web"""
+    os.makedirs("data", exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
@@ -47,18 +61,19 @@ def init_demo_db():
     conn.commit()
     conn.close()
 
-
 # =========================
 # BACKEND WEB VULNÉRABLE
 # =========================
-def vulnerable_web_login(http_request: dict):
+def vulnerable_web_endpoint(path: str, params: dict):
     """
-    Simule un backend WEB vulnérable à la SQL Injection
+    Simule un endpoint web vulnérable (/login)
     """
-    username = http_request["params"]["username"]
-    password = http_request["params"]["password"]
+    if path != "/login":
+        return None, None, "404 Not Found (endpoint not simulated)"
 
-    # ❌ VULNÉRABILITÉ INTENTIONNELLE
+    username = params.get("username", "")
+    password = params.get("password", "")
+
     sql = (
         "SELECT id, username, role FROM users "
         f"WHERE username = '{username}' AND password = '{password}'"
@@ -74,111 +89,105 @@ def vulnerable_web_login(http_request: dict):
     except Exception as e:
         return sql, None, str(e)
 
-
 # =========================
 # UI MODULE
 # =========================
 class SQLInjectionModule:
     """
-    Module GUI compatible avec main.py
+    SQL Injection scanner basé sur URL
     """
 
     def __init__(self, parent):
         self.parent = parent
+        init_demo_db()
         self.build_ui()
 
     def build_ui(self):
         frame = tk.Frame(self.parent, bg="#1e1e1e")
         frame.pack(fill="both", expand=True)
 
-        title = tk.Label(
+        tk.Label(
             frame,
-            text="SQL Injection – OWASP A03 (Web Application)",
+            text="SQL Injection Scanner – OWASP A03 (Web Application)",
             bg="#1e1e1e",
             fg="white",
             font=("Arial", 14, "bold")
-        )
-        title.pack(anchor="w", pady=5)
+        ).pack(anchor="w", pady=5)
 
-        description = tk.Label(
+        tk.Label(
             frame,
             text=(
-                "Simulation d’une attaque SQL Injection sur une application WEB.\n"
-                "Les données injectées transitent via une requête HTTP (login)."
+                "Scanner SQL Injection basé sur une URL cible.\n"
+                "Le scanner teste automatiquement plusieurs payloads OWASP."
             ),
             bg="#1e1e1e",
             fg="white",
             justify="left"
-        )
-        description.pack(anchor="w", pady=5)
+        ).pack(anchor="w", pady=5)
 
         controls = tk.Frame(frame, bg="#1e1e1e")
         controls.pack(fill="x", pady=5)
 
-        ttk.Button(
+        tk.Label(
             controls,
-            text="Init DB Web",
-            command=self.init_db
+            text="Target URL:",
+            bg="#1e1e1e",
+            fg="white"
         ).pack(side="left", padx=5)
 
-        self.payload_entry = ttk.Entry(controls, width=60)
-        self.payload_entry.insert(0, "' OR '1'='1' --")
-        self.payload_entry.pack(side="left", padx=5)
+        self.url_entry = ttk.Entry(controls, width=40)
+        self.url_entry.insert(0, "http://127.0.0.1/login")
+        self.url_entry.pack(side="left", padx=5)
 
         ttk.Button(
             controls,
-            text="Send HTTP Request",
-            command=self.send_request
+            text="Run SQL Injection Scan",
+            command=self.run_scan
         ).pack(side="left", padx=5)
 
         self.output = scrolledtext.ScrolledText(
             frame,
-            height=18,
+            height=20,
             bg="#121212",
             fg="white"
         )
         self.output.pack(fill="both", expand=True, pady=5)
 
-        self.log("[INFO] Module SQL Injection prêt.")
+        self.log("[INFO] SQL Injection scanner ready.")
+        self.log("[INFO] Demo database initialized.")
 
     def log(self, text):
-        self.output.insert(tk.END, text + "\n\n")
+        self.output.insert(tk.END, text + "\n")
         self.output.see(tk.END)
 
-    def init_db(self):
-        init_demo_db()
-        self.log("[DB] Base de données Web initialisée.")
+    def run_scan(self):
+        self.log("\n[SCAN] Starting SQL Injection scan...\n")
 
-    def send_request(self):
-        payload = self.payload_entry.get()
+        parsed = urlparse(self.url_entry.get())
+        path = parsed.path if parsed.path else "/"
 
-        http_request = {
-            "method": "GET",
-            "path": "/login",
-            "params": {
+        for payload in SQLI_PAYLOADS:
+            params = {
                 "username": payload,
                 "password": "test"
             }
-        }
 
-        self.log("[HTTP REQUEST]")
-        self.log(f"GET /login?username={payload}&password=test")
+            self.log(f"[TARGET] {parsed.geturl()}")
+            self.log(f"[HTTP] GET {path}?username={payload}&password=test")
 
-        sql, result, error = vulnerable_web_login(http_request)
+            sql, result, error = vulnerable_web_endpoint(path, params)
 
-        self.log("[SQL GENERATED]")
-        self.log(sql)
-
-        if error:
-            self.log("[ERROR]")
-            self.log(error)
-        else:
-            self.log("[DB RESPONSE]")
-            self.log(str(result))
-
-            if result:
-                self.log("[IMPACT]")
-                self.log("Authentication bypass detected (OWASP A03: Injection)")
+            if error:
+                self.log(f"[ERROR] {error}")
             else:
-                self.log("[RESULT]")
-                self.log("Login failed (no injection success)")
+                self.log(f"[SQL] {sql}")
+
+                if result:
+                    self.log("[RESULT] VULNERABLE ✔")
+                    self.log("         → SQL Injection / Authentication bypass")
+                else:
+                    self.log("[RESULT] Not vulnerable")
+
+            self.log("-" * 70)
+
+        self.log("[SCAN] Finished.")
