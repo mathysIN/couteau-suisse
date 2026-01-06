@@ -7,6 +7,43 @@ import sqlite3 from "sqlite3";
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
+// Simple rate limiting to demonstrate flood attack effects
+const requestCounts = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 100; // Max requests per window
+const RATE_WINDOW = 10000; // 10 seconds
+
+app.use((req, res, next) => {
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  
+  if (!requestCounts.has(ip)) {
+    requestCounts.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
+    return next();
+  }
+  
+  const record = requestCounts.get(ip)!;
+  
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + RATE_WINDOW;
+    return next();
+  }
+  
+  record.count++;
+  
+  if (record.count > RATE_LIMIT) {
+    console.log(`[RATE LIMIT] Blocked request from ${ip} (${record.count} requests)`);
+    return res.status(429).send('Too Many Requests - Rate limit exceeded');
+  }
+  
+  // Simulate slowdown as load increases
+  if (record.count > RATE_LIMIT * 0.7) {
+    setTimeout(() => next(), 200); // Slow response
+  } else {
+    next();
+  }
+});
+
 const DB_PATH = path.join(__dirname, "products.db");
 
 const dbDir = path.dirname(DB_PATH);

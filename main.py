@@ -5,6 +5,7 @@ from modules.crsf import CRSFModule
 from modules.xss_injection import XSSModule
 from modules.sql_injection import SQLInjectionModule
 from modules.scan_supply_chain import SupplyChainModule
+from modules.http_flood import HTTPFloodModule
 
 
 class ThinkerApp(tk.Tk):
@@ -29,7 +30,8 @@ class ThinkerApp(tk.Tk):
             ("CSRF", self.show_crsf),
             ("XSS Injection", self.show_xss),
             ("SQL Injection", self.show_sql_injection),
-            ("Supply Chain Scan", self.run_supply_chain_scan)
+            ("Supply Chain Scan", self.run_supply_chain_scan),
+            ("HTTP Flood", self.show_http_flood)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -61,9 +63,14 @@ class ThinkerApp(tk.Tk):
     def show_xss(self):
         self.clear_container()
         XSSModule(self.container)
+        
     def show_sql_injection(self):
         self.clear_container()
         SQLInjectionModule(self.container)
+        
+    def show_http_flood(self):
+        self.clear_container()
+        HTTPFloodModule(self.container)
 
 
 if __name__ == "__main__":
