@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vulnerable Search - SQL Injection Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">Product Search</h1>
+      <p class="text-gray-600 mb-6">Current time: ${time}</p>
+
+      <form action="/search" method="POST" class="mb-6">
+        <div class="flex gap-2">
+          <input
+            type="text"
+            name="searched"
+            placeholder="Search for products (try: Apple, or try SQL injection...)"
+            class="flex-1 px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            class="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Search
+          </button>
+        </div>
+      </form>
+
+      <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
+        <h4 class="text-lg font-semibold text-gray-800 mb-3">
+          Examples payloads:
+        </h4>
+        <ul class="space-y-2 text-gray-700">
+          <li>
+            <code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono"
+              >banana</code
+            >
+            <span class="ml-2">- Search product</span>
+          </li>
+          <li>
+            <code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono"
+              >' OR '1'='1</code
+            >
+            <span class="ml-2">- View all products (SQL injection)</span>
+          </li>
+          <li>
+            <code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+              &lt;script&gt;alert(1)&lt;/script&gt;
+            </code>
+            <span class="ml-2">- XSS injection (XSS)</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
