@@ -7,6 +7,7 @@ from modules.sql_injection import SQLInjectionModule
 from modules.scan_supply_chain import SupplyChainModule
 from modules.http_flood import HTTPFloodModule
 from modules.buffer_overflow import BufferOverflowModule
+from modules.bruteforce import BruteForceModule
 
 
 class ThinkerApp(tk.Tk):
@@ -33,7 +34,8 @@ class ThinkerApp(tk.Tk):
             ("SQL Injection", self.show_sql_injection),
             ("Supply Chain Scan", self.run_supply_chain_scan),
             ("HTTP Flood", self.show_http_flood),
-            ("Buffer Overflow", self.show_bof)
+            ("Buffer Overflow", self.show_bof),
+            ("Brute Force", self.show_bruteforce)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -73,6 +75,10 @@ class ThinkerApp(tk.Tk):
     def show_http_flood(self):
         self.clear_container()
         HTTPFloodModule(self.container)
+        
+    def show_bruteforce(self):
+        self.clear_container()
+        BruteForceModule(self.container)
 
     def show_bof(self):
         self.clear_container()
