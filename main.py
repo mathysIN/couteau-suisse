@@ -6,6 +6,7 @@ from modules.xss_injection import XSSModule
 from modules.sql_injection import SQLInjectionModule
 from modules.scan_supply_chain import SupplyChainModule
 from modules.http_flood import HTTPFloodModule
+from modules.bruteforce import BruteForceModule
 
 
 class ThinkerApp(tk.Tk):
@@ -31,7 +32,8 @@ class ThinkerApp(tk.Tk):
             ("XSS Injection", self.show_xss),
             ("SQL Injection", self.show_sql_injection),
             ("Supply Chain Scan", self.run_supply_chain_scan),
-            ("HTTP Flood", self.show_http_flood)
+            ("HTTP Flood", self.show_http_flood),
+            ("Brute Force", self.show_bruteforce)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -71,6 +73,10 @@ class ThinkerApp(tk.Tk):
     def show_http_flood(self):
         self.clear_container()
         HTTPFloodModule(self.container)
+        
+    def show_bruteforce(self):
+        self.clear_container()
+        BruteForceModule(self.container)
 
 
 if __name__ == "__main__":

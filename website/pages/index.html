@@ -10,8 +10,34 @@
   </head>
   <body class="bg-gray-100 p-8">
     <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
-      <h1 class="text-3xl font-bold text-gray-800 mb-2">Product Search</h1>
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">🔓 Vulnerability Demos</h1>
       <p class="text-gray-600 mb-6">Current time: ${time}</p>
+
+      <!-- Navigation Menu -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <a href="/" class="bg-blue-500 text-white p-6 rounded-lg hover:bg-blue-600 transition-colors">
+          <h2 class="text-xl font-bold mb-2">🔍 SQL Injection</h2>
+          <p class="text-sm">Test SQL injection vulnerabilities</p>
+        </a>
+        <a href="/ssrf-demo" class="bg-red-500 text-white p-6 rounded-lg hover:bg-red-600 transition-colors">
+          <h2 class="text-xl font-bold mb-2">🌐 SSRF Attack</h2>
+          <p class="text-sm">Server-Side Request Forgery</p>
+        </a>
+        <a href="/pathtraversal-demo" class="bg-orange-500 text-white p-6 rounded-lg hover:bg-orange-600 transition-colors">
+          <h2 class="text-xl font-bold mb-2">📁 Path Traversal</h2>
+          <p class="text-sm">Unauthorized file access</p>
+        </a>
+        <a href="/login" class="bg-purple-500 text-white p-6 rounded-lg hover:bg-purple-600 transition-colors">
+          <h2 class="text-xl font-bold mb-2">🔐 Brute Force</h2>
+          <p class="text-sm">No rate limiting - Use Python module to attack</p>
+        </a>
+        <div class="bg-gray-300 text-gray-700 p-6 rounded-lg">
+          <h2 class="text-xl font-bold mb-2">⚠️ XSS (Included)</h2>
+          <p class="text-sm">Cross-Site Scripting via search</p>
+        </div>
+      </div>
+
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Product Search</h2>
 
       <form action="/search" method="POST" class="mb-6">
         <div class="flex gap-2">
