@@ -7,6 +7,7 @@ from modules.sql_injection import SQLInjectionModule
 from modules.scan_supply_chain import SupplyChainModule
 from modules.http_flood import HTTPFloodModule
 from modules.buffer_overflow import BufferOverflowModule
+from modules.path_traversal import PathTraversalModule
 
 
 class ThinkerApp(tk.Tk):
@@ -33,7 +34,8 @@ class ThinkerApp(tk.Tk):
             ("SQL Injection", self.show_sql_injection),
             ("Supply Chain Scan", self.run_supply_chain_scan),
             ("HTTP Flood", self.show_http_flood),
-            ("Buffer Overflow", self.show_bof)
+            ("Buffer Overflow", self.show_bof),
+            ("Path Traversal", self.show_path_traversal)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -77,6 +79,10 @@ class ThinkerApp(tk.Tk):
     def show_bof(self):
         self.clear_container()
         BufferOverflowModule(self.container)
+
+    def show_path_traversal(self):
+        self.clear_container()
+        PathTraversalModule(self.container)
 
 
 if __name__ == "__main__":
