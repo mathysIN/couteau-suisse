@@ -146,12 +146,12 @@ app.get("/login", (_req, res) => {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - Brute Force Demo</title>
+    <title>Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-gray-100 p-8">
-    <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
-      <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">🔐 Login</h1>
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-sm p-8">
+      <h1 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Login</h1>
 
       <form action="/login" method="POST" class="space-y-4">
         <div>
@@ -159,8 +159,7 @@ app.get("/login", (_req, res) => {
           <input
             type="text"
             name="username"
-            placeholder="admin"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
             required
           />
         </div>
@@ -169,34 +168,20 @@ app.get("/login", (_req, res) => {
           <input
             type="password"
             name="password"
-            placeholder="password"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
             required
           />
         </div>
         <button
           type="submit"
-          class="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          class="w-full px-6 py-3 bg-gray-800 text-white font-medium rounded hover:bg-gray-700"
         >
           Login
         </button>
       </form>
 
       <div class="mt-6">
-        <a href="/" class="text-blue-600 hover:underline">← Back to Home</a>
-      </div>
-
-      <div class="mt-6 bg-red-50 border-l-4 border-red-500 p-4 text-sm">
-        <p class="text-red-800 font-semibold mb-2">⚠️ VULNERABILITY: No Rate Limiting!</p>
-        <p class="text-red-700">This login page has no protection against brute force attacks.</p>
-        <p class="text-red-700 mt-2">Use the Python module to launch dictionary attack:</p>
-        <code class="bg-gray-900 text-green-400 block mt-2 p-2 rounded">python -m modules.bruteforce</code>
-      </div>
-
-      <div class="mt-4 bg-gray-50 p-4 rounded text-sm text-gray-600">
-        <p><strong>Valid credentials (for testing):</strong></p>
-        <p>Username: <code class="bg-gray-200 px-2 py-1 rounded">admin</code></p>
-        <p>Password: <code class="bg-gray-200 px-2 py-1 rounded">password123</code></p>
+        <a href="/" class="text-gray-600 hover:underline">← Back to Home</a>
       </div>
     </div>
   </body>
@@ -224,12 +209,11 @@ app.post("/login", (_req, res) => {
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-gray-100 p-8">
-    <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-sm p-8">
       <div class="text-center">
-        <div class="text-6xl mb-4">✅</div>
-        <h1 class="text-3xl font-bold text-green-600 mb-4">Login Successful!</h1>
-        <p class="text-gray-700 mb-6">Welcome, ${username}!</p>
-        <a href="/login" class="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <h1 class="text-2xl font-semibold text-gray-800 mb-4">Login Successful</h1>
+        <p class="text-gray-600 mb-6">Welcome, ${username}</p>
+        <a href="/login" class="inline-block px-6 py-3 bg-gray-600 text-white rounded hover:bg-gray-700">
           Back to Login
         </a>
       </div>
@@ -237,23 +221,22 @@ app.post("/login", (_req, res) => {
   </body>
 </html>`);
     }
-  } else {
-    if (acceptsJson) {
-      res.json({ success: false, message: "Invalid credentials" });
     } else {
-      res.send(`<!DOCTYPE html>
+      if (acceptsJson) {
+        res.json({ success: false, message: "Invalid credentials" });
+      } else {
+        res.send(`<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-gray-100 p-8">
-    <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-sm p-8">
       <div class="text-center">
-        <div class="text-6xl mb-4">❌</div>
-        <h1 class="text-3xl font-bold text-red-600 mb-4">Login Failed!</h1>
-        <p class="text-gray-700 mb-6">Invalid username or password</p>
-        <a href="/login" class="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <h1 class="text-2xl font-semibold text-gray-800 mb-4">Login Failed</h1>
+        <p class="text-gray-600 mb-6">Invalid username or password</p>
+        <a href="/login" class="inline-block px-6 py-3 bg-gray-600 text-white rounded hover:bg-gray-700">
           Try Again
         </a>
       </div>

@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
+# ensure ngrok header patch is applied before importing other modules
+import modules.ngrok_patch
 from modules.portscanner import PortScannerModule
 from modules.crsf import CRSFModule
 from modules.xss_injection import XSSModule
