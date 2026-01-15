@@ -15,27 +15,27 @@ const RATE_WINDOW = 10000; // 10 seconds
 app.use((req, res, next) => {
   const ip = req.ip || 'unknown';
   const now = Date.now();
-  
+
   if (!requestCounts.has(ip)) {
     requestCounts.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
     return next();
   }
-  
+
   const record = requestCounts.get(ip)!;
-  
+
   if (now > record.resetTime) {
     record.count = 1;
     record.resetTime = now + RATE_WINDOW;
     return next();
   }
-  
+
   record.count++;
-  
+
   if (record.count > RATE_LIMIT) {
     console.log(`[RATE LIMIT] Blocked request from ${ip} (${record.count} requests)`);
     return res.status(429).send('Too Many Requests - Rate limit exceeded');
   }
-  
+
   // Simulate slowdown as load increases
   if (record.count > RATE_LIMIT * 0.7) {
     setTimeout(() => next(), 200); // Slow response
@@ -245,6 +245,88 @@ app.post("/login", (_req, res) => {
 </html>`);
     }
   }
+});
+
+// Fake administration page (for directory scanner testing)
+app.get("/administration", (_req, res) => {
+  const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Administration Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-900 p-8 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-gray-800 rounded-xl shadow-2xl p-8 border border-gray-700">
+      <div class="text-center mb-8">
+        <div class="text-5xl mb-4">🔒</div>
+        <h1 class="text-2xl font-bold text-white">Administration Panel</h1>
+        <p class="text-gray-400 text-sm mt-2">Authorized personnel only</p>
+      </div>
+
+      <form action="/administration" method="POST" class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Admin Username</label>
+          <input
+            type="text"
+            name="admin_user"
+            placeholder="administrator"
+            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            required
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Admin Password</label>
+          <input
+            type="password"
+            name="admin_pass"
+            placeholder="••••••••"
+            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Access Panel
+        </button>
+      </form>
+
+      <div class="mt-6 text-center">
+        <a href="/" class="text-gray-400 hover:text-white text-sm">← Back to Home</a>
+      </div>
+
+      <div class="mt-8 bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 text-sm">
+        <p class="text-yellow-400 font-semibold">⚠️ Hidden admin page</p>
+        <p class="text-yellow-300/70 mt-1">This page was discovered via directory enumeration.</p>
+      </div>
+    </div>
+  </body>
+</html>`;
+  res.send(html);
+});
+
+app.post("/administration", (_req, res) => {
+  const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-900 p-8 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-gray-800 rounded-xl shadow-2xl p-8 border border-red-500 text-center">
+      <div class="text-6xl mb-4">🚫</div>
+      <h1 class="text-2xl font-bold text-red-500 mb-4">Access Denied</h1>
+      <p class="text-gray-400 mb-6">Invalid credentials. This attempt has been logged.</p>
+      <a href="/administration" class="inline-block px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600">
+        Try Again
+      </a>
+    </div>
+  </body>
+</html>`;
+  res.send(html);
 });
 
 

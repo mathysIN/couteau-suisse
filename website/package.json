@@ -4,7 +4,7 @@
   "description": "",
   "main": "main.ts",
   "scripts": {
-    "start": "tsx main.ts",
+    "start": "npx tsx main.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
