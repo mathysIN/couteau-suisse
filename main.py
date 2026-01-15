@@ -8,6 +8,7 @@ from modules.scan_supply_chain import SupplyChainModule
 from modules.http_flood import HTTPFloodModule
 from modules.buffer_overflow import BufferOverflowModule
 from modules.bruteforce import BruteForceModule
+from modules.directory_scanner import DirectoryScannerModule
 
 
 class ThinkerApp(tk.Tk):
@@ -35,7 +36,8 @@ class ThinkerApp(tk.Tk):
             ("Supply Chain Scan", self.run_supply_chain_scan),
             ("HTTP Flood", self.show_http_flood),
             ("Buffer Overflow", self.show_bof),
-            ("Brute Force", self.show_bruteforce)
+            ("Brute Force", self.show_bruteforce),
+            ("Dir Scanner", self.show_dir_scanner)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -83,6 +85,10 @@ class ThinkerApp(tk.Tk):
     def show_bof(self):
         self.clear_container()
         BufferOverflowModule(self.container)
+
+    def show_dir_scanner(self):
+        self.clear_container()
+        DirectoryScannerModule(self.container)
 
 
 if __name__ == "__main__":
