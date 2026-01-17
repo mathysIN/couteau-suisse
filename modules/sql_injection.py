@@ -1,15 +1,6 @@
 """
 modules/sql_injection.py
 
-SCÉNARIO OWASP A03 – SQL INJECTION
-Adapté au site web de test (endpoint POST /search)
-
-Objectif pédagogique :
-- Scanner SQL Injection sur un formulaire réel
-- Injection via paramètre POST "searched"
-- Simulation fidèle du backend Node.js vulnérable
-
-⚠️ Usage pédagogique uniquement
 """
 
 import os

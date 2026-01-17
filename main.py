@@ -42,7 +42,7 @@ class ThinkerApp(tk.Tk):
             ("Buffer Overflow", self.show_bof),
             ("Brute Force", self.show_bruteforce),
             ("Dir Scanner", self.show_dir_scanner),
-            ("Verbose Errors", self.show_verbose_errors)
+            ("Verbose Errors", self.show_verbose_errors),
             ("Path Traversal", self.show_path_traversal)
         ]
 

@@ -1,12 +1,7 @@
 """
 modules/verbose_error.py
 
-OWASP A05 – Verbose Error Disclosure (Web Scanner)
 
-Ce module teste si une application web divulgue des erreurs SQL.
-Il attaque le endpoint POST /search du site Express fourni dans le projet.
-
-⚠️ Usage pédagogique uniquement
 """
 
 import tkinter as tk
