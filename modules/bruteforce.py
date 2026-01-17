@@ -72,7 +72,7 @@ class BruteForceModule(tk.Frame):
         warning_frame = tk.Frame(self, bg="#1e1e1e")
         warning_frame.pack(fill="x", pady=5)
         warning_label = ttk.Label(warning_frame, 
-                                  text="⚠️ Educational purpose only - Test only on authorized targets!",
+                                  text="⚠️ Test only on authorized targets!",
                                   foreground="#ff6b6b")
         warning_label.pack(side="left", padx=5)
 

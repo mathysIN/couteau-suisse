@@ -6,6 +6,7 @@ import sqlite3 from "sqlite3";
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // Pour accepter les payloads JSON
 
 // Simple rate limiting to demonstrate flood attack effects
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -246,6 +247,135 @@ app.post("/login", (_req, res) => {
     }
   }
 });
+
+// ============================================================================
+// VULNERABLE ENDPOINTS
+// ============================================================================
+
+// 1. PROTOTYPE POLLUTION - Vulnerable endpoint
+app.post("/api/config", (_req, res) => {
+  console.log("[VULN] Prototype Pollution endpoint accessed");
+  
+  const config: any = {};
+  
+  // Vulnerability: Merge user input without sanitization
+  function merge(target: any, source: any): any {
+    for (const key in source) {
+      if (typeof source[key] === 'object' && source[key] !== null) {
+        if (!target[key]) {
+          target[key] = {};
+        }
+        merge(target[key], source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    }
+    return target;
+  }
+  
+  try {
+    const userConfig = _req.body;
+    merge(config, userConfig);
+    
+    // Check if prototype was polluted
+    const testObj: any = {};
+    if (testObj.polluted) {
+      console.log("[!] VULNERABLE: Object.prototype was polluted!");
+      res.status(200).json({
+        status: "vulnerable",
+        message: "Configuration updated - prototype pollution detected!",
+        polluted: testObj.polluted
+      });
+    } else {
+      res.status(200).json({
+        status: "success",
+        message: "Configuration updated",
+        config: config
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// VERIFICATION ENDPOINT - Pour prouver que la pollution a fonctionné
+app.get("/api/verify-pollution", (_req, res) => {
+  console.log("[VERIFY] Checking for prototype pollution...");
+  
+  // Créer un nouvel objet vide
+  const testObject: any = {};
+  
+  // Vérifier les propriétés polluées
+  const result = {
+    polluted: testObject.polluted !== undefined,
+    isAdmin: testObject.isAdmin,
+    role: testObject.role,
+    privileges: testObject.privileges,
+    exploited: testObject.exploited,
+    message: testObject.polluted ? "🚨 CONFIRMED: Object.prototype was polluted!" : "No pollution detected"
+  };
+  
+  res.json(result);
+});
+
+// 2. XSS - Vulnerable search endpoint (reflects user input)
+app.get("/api/search", (_req, res) => {
+  const query = _req.query.search || "";
+  console.log(`[VULN] XSS endpoint - search query: ${query}`);
+  
+  // Vulnerability: No sanitization - reflects user input directly
+  const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Search Results</title>
+    <script src="https://code.jquery.com/jquery-1.12.3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.11/lodash.min.js"></script>
+  </head>
+  <body>
+    <h1>Search Results</h1>
+    <p>You searched for: ${query}</p>
+    <div id="results">
+      <!-- User input is reflected here without escaping -->
+      ${query}
+    </div>
+    <script>
+      // jQuery vulnerable to XSS
+      $(document).ready(function() {
+        $('#results').html('${query}');
+      });
+    </script>
+  </body>
+</html>`;
+  
+  res.send(html);
+});
+
+// 3. DEPENDENCY CONFUSION - Expose package.json
+app.get("/package.json", (_req, res) => {
+  console.log("[VULN] package.json exposed");
+  const packagePath = path.join(__dirname, "../package.json");
+  
+  if (fs.existsSync(packagePath)) {
+    res.sendFile(packagePath);
+  } else {
+    res.status(404).json({ error: "package.json not found" });
+  }
+});
+
+// 4. Additional vulnerable endpoint - Config file exposure
+app.get("/.env", (_req, res) => {
+  console.log("[VULN] .env file access attempted");
+  res.send(`DB_HOST=localhost
+DB_USER=admin
+DB_PASSWORD=SuperSecret123!
+API_KEY=sk-1234567890abcdef
+JWT_SECRET=my-ultra-secret-jwt-key`);
+});
+
+// ============================================================================
+// END VULNERABLE ENDPOINTS
+// ============================================================================
 
 // Fake administration page (for directory scanner testing)
 app.get("/administration", (_req, res) => {
