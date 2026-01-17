@@ -17,7 +17,7 @@ except Exception:
     MITMPROXY_AVAILABLE = False
 
 
-class CsrfAddon:
+class ProxyInterceptionAddon:
     def __init__(self, log_fn: Callable[[str], None], scope_pattern: Optional[str] = None,
                  probe_mode: bool = False, intercept_mode: bool = False,
                  state_file: Optional[str] = None) -> None:
@@ -132,7 +132,7 @@ class MitmProxyRunner:
             return
         
         if intercept_mode:
-            self.state_file = os.path.join(tempfile.gettempdir(), f"csrf_state_{os.getpid()}.json")
+            self.state_file = os.path.join(tempfile.gettempdir(), f"proxy_interception_state_{os.getpid()}.json")
         
         self._start_mitmdump_subprocess(
             listen_host, listen_port, upstream, scope_pattern, probe_mode, intercept_mode)
@@ -178,7 +178,7 @@ class MitmProxyRunner:
         try:
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             script_code = self._generate_addon_script(scope_pattern, probe_mode, intercept_mode)
-            fd, path = tempfile.mkstemp(prefix="csrf_addon_", suffix=".py")
+            fd, path = tempfile.mkstemp(prefix="proxy_interception_addon_", suffix=".py")
             with os.fdopen(fd, "w") as f:
                 f.write(script_code)
             self.temp_script_path = path
@@ -198,7 +198,7 @@ class MitmProxyRunner:
             env = os.environ.copy()
             env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
             if intercept_mode and self.state_file:
-                env["CSRF_STATE_FILE"] = self.state_file
+                env["PROXY_INTERCEPTION_STATE_FILE"] = self.state_file
 
             self.log_fn(f"[*] Starting mitmproxy on {listen_host}:{listen_port}" +
                         (f" via upstream {upstream}" if upstream else ""))
@@ -230,18 +230,18 @@ class MitmProxyRunner:
         sp = (scope_pattern or "")
         pm = "True" if probe_mode else "False"
         im = "True" if intercept_mode else "False"
-        state_file_str = "os.environ.get('CSRF_STATE_FILE')" if intercept_mode else "None"
+        state_file_str = "os.environ.get('PROXY_INTERCEPTION_STATE_FILE')" if intercept_mode else "None"
         scope_repr = repr(sp) if sp else "None"
         scope_bool = "True" if sp else "False"
         return (
             "import os\n"
-            "from modules.crsf import CsrfAddon\n"
+            "from modules.proxy_interception import ProxyInterceptionAddon\n"
             "def _log(msg: str):\n"
             "    print(msg, flush=True)\n"
             "state_file = {}\n".format(state_file_str) +
-            "_log('[CSRF ADDON] Starting with scope=' + {} + ', probe={}, intercept={}, state_file=' + str(state_file))\n".format(scope_repr, pm, im) +
-            "addons = [CsrfAddon(_log, scope_pattern={} if {} else None, probe_mode={}, intercept_mode={}, state_file=state_file)]\n".format(scope_repr, scope_bool, pm, im) +
-            "_log('[CSRF ADDON] Addon loaded successfully')\n"
+            "_log('[PROXY INTERCEPTION] Starting with scope=' + {} + ', probe={}, intercept={}, state_file=' + str(state_file))\n".format(scope_repr, pm, im) +
+            "addons = [ProxyInterceptionAddon(_log, scope_pattern={} if {} else None, probe_mode={}, intercept_mode={}, state_file=state_file)]\n".format(scope_repr, scope_bool, pm, im) +
+            "_log('[PROXY INTERCEPTION] Addon loaded successfully')\n"
         )
     
     def resume_flow(self, flow_id: str, headers: Dict[str, str], body: str) -> bool:
@@ -276,7 +276,7 @@ class MitmProxyRunner:
             return False
 
 
-class CRSFModule(tk.Frame):
+class ProxyInterceptionModule(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent, bg="#1e1e1e")
         self.pack(fill="both", expand=True)

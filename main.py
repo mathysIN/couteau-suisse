@@ -3,7 +3,7 @@ from tkinter import ttk
 # ensure ngrok header patch is applied before importing other modules
 import modules.ngrok_patch
 from modules.portscanner import PortScannerModule
-from modules.crsf import CRSFModule
+from modules.proxy_interception import ProxyInterceptionModule
 from modules.xss_injection import XSSModule
 from modules.sql_injection import SQLInjectionModule
 from modules.scan_supply_chain import SupplyChainModule
@@ -34,7 +34,7 @@ class ThinkerApp(tk.Tk):
 
         modules = [
             ("Port Scanner", self.show_port_scanner),
-            ("CSRF", self.show_crsf),
+            ("Proxy Interception", self.show_proxy_interception),
             ("XSS Injection", self.show_xss),
             ("SQL Injection", self.show_sql_injection),
             ("Supply Chain Scan", self.run_supply_chain_scan),
@@ -68,9 +68,9 @@ class ThinkerApp(tk.Tk):
         self.clear_container()
         PortScannerModule(self.container)
 
-    def show_crsf(self):
+    def show_proxy_interception(self):
         self.clear_container()
-        CRSFModule(self.container)
+        ProxyInterceptionModule(self.container)
 
     def show_xss(self):
         self.clear_container()
