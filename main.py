@@ -12,7 +12,7 @@ from modules.buffer_overflow import BufferOverflowModule
 from modules.bruteforce import BruteForceModule
 from modules.directory_scanner import DirectoryScannerModule
 from modules.verbose_error import VerboseErrorModule
-
+from modules.path_traversal import PathTraversalModule
 
 
 class ThinkerApp(tk.Tk):
@@ -43,6 +43,7 @@ class ThinkerApp(tk.Tk):
             ("Brute Force", self.show_bruteforce),
             ("Dir Scanner", self.show_dir_scanner),
             ("Verbose Errors", self.show_verbose_errors)
+            ("Path Traversal", self.show_path_traversal)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -99,6 +100,9 @@ class ThinkerApp(tk.Tk):
         self.clear_container()
         VerboseErrorModule(self.container)
 
+    def show_path_traversal(self):
+        self.clear_container()
+        PathTraversalModule(self.container)
 
 
 if __name__ == "__main__":
