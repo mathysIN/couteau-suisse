@@ -11,6 +11,8 @@ from modules.http_flood import HTTPFloodModule
 from modules.buffer_overflow import BufferOverflowModule
 from modules.bruteforce import BruteForceModule
 from modules.directory_scanner import DirectoryScannerModule
+from modules.verbose_error import VerboseErrorModule
+
 
 
 class ThinkerApp(tk.Tk):
@@ -39,7 +41,8 @@ class ThinkerApp(tk.Tk):
             ("HTTP Flood", self.show_http_flood),
             ("Buffer Overflow", self.show_bof),
             ("Brute Force", self.show_bruteforce),
-            ("Dir Scanner", self.show_dir_scanner)
+            ("Dir Scanner", self.show_dir_scanner),
+            ("Verbose Errors", self.show_verbose_errors)
         ]
 
         for i, (label, action) in enumerate(modules):
@@ -91,6 +94,11 @@ class ThinkerApp(tk.Tk):
     def show_dir_scanner(self):
         self.clear_container()
         DirectoryScannerModule(self.container)
+
+    def show_verbose_errors(self):
+        self.clear_container()
+        VerboseErrorModule(self.container)
+
 
 
 if __name__ == "__main__":
