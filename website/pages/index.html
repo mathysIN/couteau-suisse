@@ -13,11 +13,12 @@
       <h1 class="text-2xl font-semibold text-gray-800 mb-2">Product Catalog</h1>
       <p class="text-gray-500 mb-8">${time}</p>
 
-      <form action="/search" method="POST" class="mb-6">
+      <form id="searchForm" action="/search" method="POST" class="mb-6">
         <div class="flex gap-2">
           <input
             type="text"
             name="searched"
+            id="searchInput"
             placeholder="Search products..."
             class="flex-1 px-4 py-3 text-base border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
           />
@@ -31,4 +32,19 @@
       </form>
     </div>
   </body>
+  <script>
+    const bannedWords = ["banana", "strawberry"];
+
+    $('#searchForm').on('submit', function() {
+      let input = $('#searchInput').val();
+
+      bannedWords.forEach(word => {
+        const regex = new RegExp(`\\b${word}\\b`, 'gi');
+        input = input.replace(regex, '****');
+      });
+
+      $('#searchInput').val(input);
+    });
+  </script>
 </html>
+
