@@ -13,6 +13,7 @@ from modules.bruteforce import BruteForceModule
 from modules.directory_scanner import DirectoryScannerModule
 from modules.verbose_error import VerboseErrorModule
 from modules.path_traversal import PathTraversalModule
+from modules.general_scan import GeneralScanModule
 
 
 class ThinkerApp(tk.Tk):
@@ -33,6 +34,7 @@ class ThinkerApp(tk.Tk):
 
 
         modules = [
+            ("General Scan", self.show_general_scan),
             ("Port Scanner", self.show_port_scanner),
             ("Proxy Interception", self.show_proxy_interception),
             ("XSS Injection", self.show_xss),
@@ -103,6 +105,10 @@ class ThinkerApp(tk.Tk):
     def show_path_traversal(self):
         self.clear_container()
         PathTraversalModule(self.container)
+
+    def show_general_scan(self):
+        self.clear_container()
+        GeneralScanModule(self.container)
 
 
 if __name__ == "__main__":
